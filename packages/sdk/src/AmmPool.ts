@@ -7,9 +7,7 @@
  */
 
 import {
-  Account,
   Contract,
-  Networks,
   TransactionBuilder,
   rpc as StellarRpc,
   nativeToScVal,
@@ -19,6 +17,7 @@ import {
 } from "@stellar/stellar-sdk";
 import type {
   AddLiquidityParams,
+  LiquidityResult,
   NetworkConfig,
   Signer,
   PoolInfo,
@@ -30,7 +29,11 @@ import { AmmErrors, AmmErrorNames } from "./types.js";
 import type { AmmErrorCode, AmmErrorKey } from "./types.js";
 import { simulateRead } from "./internal/simulate.js";
 import { invoke } from "./internal/invoke.js";
-import type { InvocationResult, InvokeOptions, Signer } from "./internal/invoke.js";
+import type {
+  InvocationResult,
+  InvokeOptions,
+  Signer as ContractSigner,
+} from "./internal/invoke.js";
 import { requireBigInt, requireText, toBigInt } from "./internal/decode.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -124,7 +127,7 @@ export class AmmPool {
     );
   }
 
-  private async execute<T>(method: string, args: xdr.ScVal[], signer: Signer, options?: InvokeOptions): Promise<InvocationResult<T>> {
+  private async execute<T>(method: string, args: xdr.ScVal[], signer: ContractSigner, options?: InvokeOptions): Promise<InvocationResult<T>> {
     return invoke<T>({
       server: this.server,
       contract: this.contract,
@@ -246,27 +249,15 @@ export class AmmPool {
     return toBigInt(scValToNative(raw));
   }
 
-  async swap(input: SwapParams, signer: Signer, options?: InvokeOptions): Promise<InvocationResult<bigint>> {
-    return this.execute("swap", [addr(input.trader), addr(input.tokenIn), i128(input.amountIn), i128(input.minAmountOut), nativeToScVal(input.deadline, { type: "u64" })], signer, options);
-  }
-
-  async swapExactOut(trader: string, tokenOut: string, amountOut: bigint, maxIn: bigint, deadline: bigint, signer: Signer, options?: InvokeOptions): Promise<InvocationResult<bigint>> {
+  async swapExactOut(trader: string, tokenOut: string, amountOut: bigint, maxIn: bigint, deadline: bigint, signer: ContractSigner, options?: InvokeOptions): Promise<InvocationResult<bigint>> {
     return this.execute("swap_exact_out", [addr(trader), addr(tokenOut), i128(amountOut), i128(maxIn), nativeToScVal(deadline, { type: "u64" })], signer, options);
   }
 
-  async addLiquidity(input: AddLiquidityParams, signer: Signer, options?: InvokeOptions): Promise<InvocationResult<bigint>> {
-    return this.execute("add_liquidity", [addr(input.provider), i128(input.amountA), i128(input.amountB), i128(input.minShares), nativeToScVal(input.deadline, { type: "u64" })], signer, options);
-  }
-
-  async removeLiquidity(input: RemoveLiquidityParams, signer: Signer, options?: InvokeOptions): Promise<InvocationResult<[bigint, bigint]>> {
-    return this.execute("remove_liquidity", [addr(input.provider), i128(input.shares), i128(input.minAmountA), i128(input.minAmountB), nativeToScVal(input.deadline, { type: "u64" })], signer, options);
-  }
-
-  async removeLiquidityOneSided(provider: string, shares: bigint, tokenOut: string, minOut: bigint, deadline: bigint, signer: Signer, options?: InvokeOptions): Promise<InvocationResult<bigint>> {
+  async removeLiquidityOneSided(provider: string, shares: bigint, tokenOut: string, minOut: bigint, deadline: bigint, signer: ContractSigner, options?: InvokeOptions): Promise<InvocationResult<bigint>> {
     return this.execute("remove_liquidity_one_sided", [addr(provider), i128(shares), addr(tokenOut), i128(minOut), nativeToScVal(deadline, { type: "u64" })], signer, options);
   }
 
-  async flashLoan(receiver: string, amountA: bigint, amountB: bigint, data: Uint8Array, signer: Signer, options?: InvokeOptions): Promise<InvocationResult<[bigint, bigint]>> {
+  async flashLoan(receiver: string, amountA: bigint, amountB: bigint, data: Uint8Array, signer: ContractSigner, options?: InvokeOptions): Promise<InvocationResult<[bigint, bigint]>> {
     return this.execute("flash_loan", [addr(receiver), i128(amountA), i128(amountB), nativeToScVal(data, { type: "bytes" })], signer, options);
   }
 
@@ -310,9 +301,9 @@ export class AmmPool {
     const raw = await this.submitSigned("add_liquidity", args, params.provider, signer);
     const native = scValToNative(raw) as [unknown, unknown, unknown];
     return {
-      amountA: BigInt(String(native[0] ?? 0)),
-      amountB: BigInt(String(native[1] ?? 0)),
-      shares: BigInt(String(native[2] ?? 0)),
+      amountA: toBigInt(native[0]),
+      amountB: toBigInt(native[1]),
+      shares: toBigInt(native[2]),
     };
   }
 
@@ -332,9 +323,9 @@ export class AmmPool {
     const raw = await this.submitSigned("remove_liquidity", args, params.provider, signer);
     const native = scValToNative(raw) as [unknown, unknown, unknown];
     return {
-      amountA: BigInt(String(native[0] ?? 0)),
-      amountB: BigInt(String(native[1] ?? 0)),
-      shares: BigInt(String(native[2] ?? 0)),
+      amountA: toBigInt(native[0]),
+      amountB: toBigInt(native[1]),
+      shares: toBigInt(native[2]),
     };
   }
 
@@ -387,9 +378,9 @@ export class AmmPool {
       throw decodeError(`transaction ${sendResult.hash} failed: ${getResult.status}`);
     }
 
-    const meta = getResult.resultMetaXdr;
-    const ops = meta?.v3?.()?.sorobanMeta?.()?.returnValue?.();
-    return ops ?? xdr.ScVal.scvVoid();
+    // `getResult` is narrowed to the SUCCESS variant here, which exposes the
+    // decoded return value directly — no need to walk `resultMetaXdr`.
+    return getResult.returnValue ?? xdr.ScVal.scvVoid();
   }
 
   // ── Contract ID ────────────────────────────────────────────────────────────

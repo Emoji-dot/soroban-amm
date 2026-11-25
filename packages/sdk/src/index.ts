@@ -29,7 +29,7 @@ export {
   TransactionTimeoutError,
 } from "./internal/invoke.js";
 export type {
-  Signer,
+  Signer as ContractSigner,
   InvokeOptions,
   InvokeRequest,
   InvocationResult,
