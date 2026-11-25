@@ -7,7 +7,7 @@
  */
 
 import assert from "node:assert/strict";
-import { describe, it, mock, beforeEach } from "node:test";
+import { describe, it } from "node:test";
 import {
   Keypair,
   Account,
@@ -26,31 +26,12 @@ import type { Signer } from "@soroban-amm/sdk";
 const NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
 const POOL_CONTRACT_ID   = "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526";
 const TOKEN_A            = "CABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAFNSZ";
-const TOKEN_B            = "CABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGCK3";
 const TRADER_KEYPAIR     = Keypair.random();
 const TRADER_ADDRESS     = TRADER_KEYPAIR.publicKey();
 
 // A minimal valid ScVal to return as a swap result (i128 = 97_000n).
 function scvI128(value: bigint): xdr.ScVal {
   return nativeToScVal(value, { type: "i128" });
-}
-
-// Build a fake pool-state ScMap for getInfo simulation.
-function fakePoolInfoRetval(): xdr.ScVal {
-  return nativeToScVal({
-    token_a: TOKEN_A,
-    token_b: TOKEN_B,
-    reserve_a: 1_000_000n,
-    reserve_b: 2_000_000n,
-    total_shares: 500_000n,
-    fee_bps: 30n,
-    protocol_fee_bps: 5n,
-    fee_recipient: null,
-    flash_loan_fee_bps: 0n,
-    admin: null,
-    is_paused: false,
-    name: "TestPool",
-  });
 }
 
 // Build a fake signed XDR that TransactionBuilder.fromXDR can round-trip.
@@ -73,12 +54,12 @@ function buildFakeTx(networkPassphrase: string): string {
 /**
  * Build a mock `rpc.Server` with the minimum surface needed by AmmPool.
  *
- * Returns the raw RPC-wire shape from `simulateTransaction` so that
- * `rpc.assembleTransaction` can parse it correctly (it expects `results`,
- * `transactionData` as a base64 string, and `minResourceFee`).
+ * `AmmPool.swap` only simulates the write path (it never reads pool state), so
+ * `simulateTransaction` always returns the raw RPC-wire shape that
+ * `rpc.assembleTransaction` parses (it expects `results`, `transactionData` as a
+ * base64 string, and `minResourceFee`).
  */
 function makeMockServer(opts: {
-  getInfoRetval: xdr.ScVal;
   swapRetval: xdr.ScVal;
   captureSimulate?: (tx: unknown) => void;
   captureSend?: (tx: unknown) => void;
@@ -88,26 +69,8 @@ function makeMockServer(opts: {
   server.getAccount = async (_address: string) =>
     new Account(TRADER_ADDRESS, "100");
 
-  // Count how many times simulate is called: first call is the read-path getInfo,
-  // subsequent calls are the write-path simulation.
-  let simCount = 0;
   server.simulateTransaction = async (tx: unknown) => {
     if (opts.captureSimulate) opts.captureSimulate(tx);
-    simCount++;
-    // First call → pool info read (read-path uses parsed retval directly).
-    // Second call → write-path swap simulation: return raw wire format.
-    if (simCount === 1) {
-      // Read path: simulateRead checks isSimulationError, then uses .result.retval.
-      // Return the parsed shape it expects.
-      return {
-        _parsed: true,
-        id: "1",
-        latestLedger: 1000,
-        result: { retval: opts.getInfoRetval, auth: [], events: [] },
-        minResourceFee: "0",
-        transactionData: new SorobanDataBuilder(),
-      } as unknown as StellarRpc.Api.SimulateTransactionSuccessResponse;
-    }
     // Write path: assembleTransaction uses raw wire format with `results[]`.
     return {
       id: "2",
@@ -150,7 +113,6 @@ describe("AmmPool.swap — signed write path", () => {
     };
 
     const server = makeMockServer({
-      getInfoRetval: fakePoolInfoRetval(),
       swapRetval: scvI128(97_000n),
       captureSend: (tx) => { submittedTx = tx; },
     });
@@ -183,19 +145,11 @@ describe("AmmPool.swap — signed write path", () => {
   });
 
   it("derives minAmountOut from the quote and passes it through to the signer", async () => {
-    const AMOUNT_IN = 100_000n;
     const SLIPPAGE_BPS = 50n;
 
     // Simulate the same formula index.ts uses.
     const fakeQuoteAmountOut = 200_000n;
     const expectedMinOut = fakeQuoteAmountOut * (10_000n - SLIPPAGE_BPS) / 10_000n;
-
-    // We capture what args the swap simulation was called with by wrapping simulate.
-    let capturedSimArgs: xdr.ScVal[] | undefined;
-
-    const signer: Signer = async (xdrStr: string) => xdrStr; // identity — not submitted
-    const signedXdr = buildFakeTx(NETWORK_PASSPHRASE);
-    const realSigner: Signer = async () => signedXdr;
 
     // Demonstrate that the caller can compute minAmountOut correctly.
     const quote = { amountOut: fakeQuoteAmountOut };
@@ -211,7 +165,6 @@ describe("AmmPool.swap — signed write path", () => {
     };
 
     const server = makeMockServer({
-      getInfoRetval: fakePoolInfoRetval(),
       swapRetval: scvI128(0n),
     });
 

@@ -571,6 +571,9 @@ Defined in [contracts/oracle_adapters/src/lib.rs](../contracts/oracle_adapters/s
 | 7 | `InvalidPrice` | The computed TWAP price is zero or negative. | Check that the pool reserves and cumulative prices are positive. |
 | 8 | `ArithmeticOverflow` | A price conversion or scaling step overflowed. | Use a smaller amount or a pool with less extreme reserves. |
 | 9 | `CrossContractCallFailed` | A cross-contract call to the configured factory or TWAP consumer failed or panicked. | Verify the configured factory and TWAP consumer addresses and ensure the callee contracts are healthy. |
+| 10 | `Paused` | `quote` called while the admin has paused the adapter. | Wait for the admin to unpause. |
+| 11 | `NoPendingAdmin` | `accept_admin` called with no pending nomination. | Ask the admin to call `propose_admin` first. |
+| 12 | `WrongPendingAdmin` | `accept_admin` called by an address other than the nominee. | Accept from the nominated address. |
 
 ---
 

@@ -189,9 +189,7 @@ export class ConcentratedLiquidityClient {
   ): Promise<PositionQuote> {
     const raw = await this.simulate(
       "quote_position",
-      i32(lowerTick),
-      i32(upperTick),
-      i128(liquidity)
+      ...this.quotePositionParams(lowerTick, upperTick, liquidity)
     );
     const native = scValToNative(raw) as [unknown, unknown];
     return {
@@ -199,6 +197,17 @@ export class ConcentratedLiquidityClient {
       amountB: toBigInt(native[1]),
       liquidity,
     };
+  }
+
+  /**
+   * Parameters for `quote_position`.
+   *
+   * Mirrors `ConcentratedLiquidity::quote_position` —
+   * contracts/concentrated_liquidity/src/lib.rs
+   * `(lower_tick: i32, upper_tick: i32, liquidity: i128)`
+   */
+  quotePositionParams(lowerTick: number, upperTick: number, liquidity: bigint): xdr.ScVal[] {
+    return [i32(lowerTick), i32(upperTick), i128(liquidity)];
   }
 
   /**

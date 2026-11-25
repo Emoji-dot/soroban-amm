@@ -6559,6 +6559,10 @@
           ]
         },
         {
+          "name": "is_paused",
+          "inputs": []
+        },
+        {
           "name": "is_venue_allowed",
           "inputs": [
             {
@@ -6577,6 +6581,15 @@
             {
               "name": "limit",
               "type": "u32"
+            }
+          ]
+        },
+        {
+          "name": "pause",
+          "inputs": [
+            {
+              "name": "admin",
+              "type": "Address"
             }
           ]
         },
@@ -6746,6 +6759,37 @@
             {
               "name": "deadline",
               "type": "u64"
+            }
+          ]
+        },
+        {
+          "name": "unpause",
+          "inputs": [
+            {
+              "name": "admin",
+              "type": "Address"
+            }
+          ]
+        },
+        {
+          "name": "upgrade",
+          "inputs": [
+            {
+              "name": "admin",
+              "type": "Address"
+            },
+            {
+              "name": "new_wasm_hash",
+              "type": "BytesN<32>"
+            }
+          ]
+        },
+        {
+          "name": "version",
+          "inputs": [
+            {
+              "name": "_env",
+              "type": "Env"
             }
           ]
         }
