@@ -1417,6 +1417,7 @@ dependencies = [
  "amm",
  "factory",
  "pool_interfaces",
+ "proptest",
  "soroban-sdk",
  "soroban_amm_sdk",
  "token",
