@@ -676,11 +676,11 @@ impl BatchRouter {
     ) -> Result<BatchOpResult, BatchRouterError> {
         let mut state = Self::load_pool(env, pools, &o.pool);
         let amm = AmmPoolClient::new(env, &o.pool);
-        if amm.is_paused() {
-            return Err(BatchRouterError::PoolPaused);
-        }
         if amm.is_drained() {
             return Err(BatchRouterError::PoolDrained);
+        }
+        if amm.is_paused() {
+            return Err(BatchRouterError::PoolPaused);
         }
         let (reserve_in, reserve_out, in_is_a) = if o.token_in == state.token_a {
             (state.reserve_a, state.reserve_b, true)
@@ -760,11 +760,11 @@ impl BatchRouter {
     ) -> Result<BatchOpResult, BatchRouterError> {
         let mut state = Self::load_pool(env, pools, &o.pool);
         let amm = AmmPoolClient::new(env, &o.pool);
-        if amm.is_paused() {
-            return Err(BatchRouterError::PoolPaused);
-        }
         if amm.is_drained() {
             return Err(BatchRouterError::PoolDrained);
+        }
+        if amm.is_paused() {
+            return Err(BatchRouterError::PoolPaused);
         }
         // Mirrors amm::add_liquidity share math (contracts/amm/src/lib.rs:1610-1618).
         let shares = if state.total_shares == 0 {
@@ -807,11 +807,11 @@ impl BatchRouter {
     ) -> Result<BatchOpResult, BatchRouterError> {
         let mut state = Self::load_pool(env, pools, &o.pool);
         let amm = AmmPoolClient::new(env, &o.pool);
-        if amm.is_paused() {
-            return Err(BatchRouterError::PoolPaused);
-        }
         if amm.is_drained() {
             return Err(BatchRouterError::PoolDrained);
+        }
+        if amm.is_paused() {
+            return Err(BatchRouterError::PoolPaused);
         }
         if state.total_shares == 0 {
             return Err(BatchRouterError::InvalidAmount);
