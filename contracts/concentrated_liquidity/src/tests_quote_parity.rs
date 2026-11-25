@@ -34,7 +34,7 @@ fn setup_pool(
     StellarAssetClient::new(env, &token_a).mint(&provider, &10_000_000_000_i128);
     StellarAssetClient::new(env, &token_b).mint(&provider, &10_000_000_000_i128);
 
-    let contract_id = env.register(ConcentratedLiquidity, ());
+    let contract_id = env.register_contract(None, ConcentratedLiquidity);
     let client = ConcentratedLiquidityClient::new(env, &contract_id);
     client.initialize(&admin, &token_a, &token_b, &30, &initial_tick, &tick_spacing);
 
