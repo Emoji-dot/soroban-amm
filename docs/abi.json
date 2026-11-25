@@ -3454,6 +3454,112 @@
     ],
     "batch_auction": [
       {
+        "function_v0": {
+          "doc": "Halt new order intake and settlement. Admin-only.",
+          "inputs": [
+            {
+              "doc": "",
+              "name": "admin",
+              "type_": "address"
+            }
+          ],
+          "name": "pause",
+          "outputs": [
+            {
+              "result": {
+                "error_type": {
+                  "udt": {
+                    "name": "AuctionError"
+                  }
+                },
+                "ok_type": {
+                  "tuple": {
+                    "value_types": []
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "function_v0": {
+          "doc": "Resume new order intake and settlement. Admin-only.",
+          "inputs": [
+            {
+              "doc": "",
+              "name": "admin",
+              "type_": "address"
+            }
+          ],
+          "name": "unpause",
+          "outputs": [
+            {
+              "result": {
+                "error_type": {
+                  "udt": {
+                    "name": "AuctionError"
+                  }
+                },
+                "ok_type": {
+                  "tuple": {
+                    "value_types": []
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "function_v0": {
+          "doc": "Replace the contract WASM in place. Admin-only.",
+          "inputs": [
+            {
+              "doc": "",
+              "name": "admin",
+              "type_": "address"
+            },
+            {
+              "doc": "",
+              "name": "new_wasm_hash",
+              "type_": {
+                "bytes_n": {
+                  "n": 32
+                }
+              }
+            }
+          ],
+          "name": "upgrade",
+          "outputs": [
+            {
+              "result": {
+                "error_type": {
+                  "udt": {
+                    "name": "AuctionError"
+                  }
+                },
+                "ok_type": {
+                  "tuple": {
+                    "value_types": []
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "function_v0": {
+          "doc": "Return the deployed batch-auction contract version.",
+          "inputs": [],
+          "name": "version",
+          "outputs": [
+            "u32"
+          ]
+        }
+      },
+      {
         "udt_struct_v0": {
           "doc": "",
           "fields": [
@@ -3598,6 +3704,16 @@
         }
       },
       {
+        "function_v0": {
+          "doc": "Whether new orders and settlement are currently halted.",
+          "inputs": [],
+          "name": "is_paused",
+          "outputs": [
+            "bool"
+          ]
+        }
+      },
+      {
         "udt_union_v0": {
           "cases": [
             {
@@ -3685,6 +3801,12 @@
               "void_v0": {
                 "doc": "Admin-settable `(min, max)` bounds for the batch window (issue #1119).\\nAbsent means `(MIN_BATCH_WINDOW_SECS, MAX_BATCH_WINDOW_SECS)`.",
                 "name": "WindowBounds"
+              }
+            },
+            {
+              "void_v0": {
+                "doc": "`true` while new orders and settlement are halted; absent means unpaused.",
+                "name": "Paused"
               }
             }
           ],
@@ -4316,6 +4438,11 @@
               "doc": "`set_window_bounds` was given `min == 0`, `min > max`, a `max` above\\n`WINDOW_BOUNDS_CEILING_SECS`, or bounds that exclude the current window\\n(issue #1119).",
               "name": "InvalidWindowBounds",
               "value": 22
+            },
+            {
+              "doc": "New orders and settlement are halted while the auction is paused.",
+              "name": "Paused",
+              "value": 23
             }
           ],
           "doc": "",
@@ -5998,7 +6125,7 @@
               "type_": "i128"
             },
             {
-              "doc": "",
+              "doc": "Minimum acceptable output; must be `>= 0` (`0` means no minimum).\\nNegative values are rejected by `validate_op` with\\n`BatchRouterError::InvalidAmount`.",
               "name": "min_out",
               "type_": "i128"
             },
@@ -6346,7 +6473,7 @@
       },
       {
         "function_v0": {
-          "doc": "Read-only walk that quotes each op against current pool state without\\nexecuting or requiring auth. An AMM swap's simulated output feeds the\\nnext op's context on the same pool exactly as `execute_batch` would.\\n\\nConcentrated-liquidity venues are quoted through the pool's own\\n`estimate_price_impact`, which reads live tick state. That state cannot\\nbe replayed locally, so a second CL op on a pool an earlier op in the\\nsame batch already touched returns\\n[`BatchRouterError::UnsimulatableChain`] rather than a stale quote.",
+          "doc": "Read-only walk that quotes each op against current pool state without\\nexecuting or requiring auth. An AMM swap's simulated output feeds the\\nnext op's context on the same pool exactly as `execute_batch` would.\\n\\nConcentrated-liquidity venues are quoted through the pool's own\\n`estimate_price_impact`, which reads live tick state. That state cannot\\nbe replayed locally, so a second CL op on a pool an earlier op in the\\nsame batch already touched returns\\n[`BatchRouterError::UnsimulatableChain`] rather than a stale quote.\\n\\nAMM circuit-breaker and oracle-deviation checks are intentionally not\\nreplayed here yet; swaps that would return `Ok(0)`/revert for those\\nguards can still receive a quote from `simulate_batch`.",
           "inputs": [
             {
               "doc": "",
@@ -6479,7 +6606,7 @@
               "type_": "i128"
             },
             {
-              "doc": "",
+              "doc": "Minimum acceptable LP shares; must be `>= 0` (`0` means no minimum).\\nNegative values are rejected by `validate_op` with\\n`BatchRouterError::InvalidAmount`.",
               "name": "min_shares",
               "type_": "i128"
             },
@@ -6584,6 +6711,11 @@
               "doc": "The router is paused by its admin. Returned by `execute_batch`,\\n`simulate_batch` and `validate_batch` alike so the pre-flight never\\ndisagrees with execution.",
               "name": "Paused",
               "value": 15
+            },
+            {
+              "doc": "The AMM pool has been permanently drained via emergency withdrawal.\\nSurfaced by simulation so pre-flight does not quote untradeable pools.",
+              "name": "PoolDrained",
+              "value": 16
             }
           ],
           "doc": "Errors returned by [`BatchRouter`] entry points.\\n\\nSee `docs/error-codes.md` for the full description of each variant.",
@@ -6596,12 +6728,12 @@
           "doc": "",
           "fields": [
             {
-              "doc": "",
+              "doc": "Minimum acceptable token A returned; must be `>= 0` (`0` means no\\nminimum). Negative values are rejected by `validate_op` with\\n`BatchRouterError::InvalidAmount`.",
               "name": "min_a",
               "type_": "i128"
             },
             {
-              "doc": "",
+              "doc": "Minimum acceptable token B returned; must be `>= 0` (`0` means no\\nminimum). Negative values are rejected by `validate_op` with\\n`BatchRouterError::InvalidAmount`.",
               "name": "min_b",
               "type_": "i128"
             },
@@ -8816,7 +8948,7 @@
       },
       {
         "function_v0": {
-          "doc": "Returns whether `owner` accepts incoming transfers (true by default).",
+          "doc": "Returns whether `owner` accepts incoming transfers (true by default).\\n\\nAn explicit opt-out is a security/compliance preference, so a recorded\\nvalue is bumped on every read; otherwise the entry could be evicted and\\nthe getter would silently fall back to `true`, re-enabling transfers the\\nowner refused. Absent entries stay absent \\xe2\\x80\\x94 the default is `true` and\\nthere is nothing to keep alive.",
           "inputs": [
             {
               "doc": "",
@@ -10529,7 +10661,7 @@
       },
       {
         "function_v0": {
-          "doc": "One-time initialisation. Sets admin, token pair, fee, starting tick, and tick spacing.\\n\\n`tick_spacing` must be > 0. Only tick values that are exact multiples of\\n`tick_spacing` may be used as position boundaries in `mint_position`.\\nSuggested defaults: fee 5 bps \\xe2\\x86\\x92 spacing 1, fee 30 bps \\xe2\\x86\\x92 spacing 10,\\nfee 100 bps \\xe2\\x86\\x92 spacing 60.",
+          "doc": "One-time initialisation. Sets admin, token pair, fee, starting tick, and tick spacing.\\n\\n`tick_spacing` must be in `1..=MAX_TICK`. Only tick values that are exact\\nmultiples of `tick_spacing` may be used as position boundaries in `mint_position`.\\nSuggested defaults: fee 5 bps \\xe2\\x86\\x92 spacing 1, fee 30 bps \\xe2\\x86\\x92 spacing 10,\\nfee 100 bps \\xe2\\x86\\x92 spacing 60.",
           "inputs": [
             {
               "doc": "",
@@ -32111,12 +32243,12 @@
               "value": 13
             },
             {
-              "doc": "The boost configuration bounds are invalid (non-positive, or max below\\nmin).",
+              "doc": "The boost configuration bounds are invalid: non-positive, max below\\nmin, or max above `MAX_BOOST_SCALED` (#1324).",
               "name": "InvalidBoostConfig",
               "value": 14
             },
             {
-              "doc": "The lock-duration configuration bounds are invalid (non-positive, or\\nmax below min).",
+              "doc": "The lock-duration configuration bounds are invalid: non-positive, max\\nbelow min, max above `MAX_LOCK_DURATION`, or `now + duration` would\\noverflow a `u64` (#1324).",
               "name": "InvalidLockDuration",
               "value": 15
             },
@@ -37782,6 +37914,11 @@
               "doc": "`accept_keeper` was called by an address other than the pending keeper.",
               "name": "WrongPendingKeeper",
               "value": 21
+            },
+            {
+              "doc": "`delete_snapshot` refused to remove the newest snapshot or to drop the\\npool below two retained snapshots, which would leave TWAP reads without\\na valid pair of cumulative-price points.",
+              "name": "CannotDeleteRequiredSnapshot",
+              "value": 22
             }
           ],
           "doc": "",
@@ -38251,7 +38388,7 @@
       },
       {
         "function_v0": {
-          "doc": "Deletes a price snapshot from persistent storage.\\nReturns `TwapError::NoSnapshotFound` and emits no event if the snapshot does not exist.",
+          "doc": "Deletes a price snapshot from persistent storage.\\n\\nRefuses with `TwapError::CannotDeleteRequiredSnapshot` (leaving storage\\nunchanged and emitting no event) if `ledger_ts` is the newest remaining\\nsnapshot or if removing it would leave fewer than two snapshots\\n(`snapshots.len() < 3`), preserving the minimum two-point history needed\\nfor TWAP reads.\\n\\nReturns `TwapError::NoSnapshotFound` and emits no event if the snapshot\\ndoes not exist.",
           "inputs": [
             {
               "doc": "",
